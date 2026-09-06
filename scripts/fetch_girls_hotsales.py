@@ -1,45 +1,47 @@
 import requests
 from bs4 import BeautifulSoup
 import json
-import datetime
+from datetime import datetime
 
-BASE_URL = "https://www.readnovel.com"
-RANK_URL = "https://www.readnovel.com/rank/hotsales?chanId=300"  # 女生畅销榜
+# 改用移动端页面，服务端渲染，可直接解析
+URL = "https://m.readnovel.com/rank/hotsales?chanId=300"
 
-def fetch_toplist():
-    resp = requests.get(RANK_URL, timeout=10)
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Linux; Android 10; Mobile) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
+    "Referer": "https://m.readnovel.com/"
+}
+
+def main():
+    resp = requests.get(URL, headers=HEADERS, timeout=20)
+    resp.encoding = "utf‑8"
     soup = BeautifulSoup(resp.text, "html.parser")
 
     books = []
+    # m站榜单条目
+    items = soup.select(".rank‑book‑item")
+    for item in items:
+        title_elem = item.select_one(".book‑title")
+        author_elem = item.select_one(".book‑author")
+        link_elem = item.select_one("a")
+        if not title_elem:
+            continue
+        book = {
+            "title": title_elem.get_text(strip=True),
+            "author": author_elem.get_text(strip=True) if author_elem else "",
+            "url": "https://m.readnovel.com" + link_elem["href"] if link_elem else ""
+        }
+        books.append(book)
 
-    for item in soup.select(".book-img-text li"):
-        title = item.select_one(".book-mid-info h4 a").text.strip()
-        link = BASE_URL + item.select_one(".book-mid-info h4 a")["href"]
-        author = item.select_one(".author a").text.strip()
-        intro = item.select_one(".intro").text.strip()
-        category = item.select_one(".author span:nth-of-type(2)").text.strip()
-        status = item.select_one(".author span:nth-of-type(3)").text.strip()
-
-        books.append({
-            "title": title,
-            "author": author,
-            "intro": intro,
-            "category": category,
-            "status": status,
-            "link": link
-        })
-
-    return books
-
-def save_data(data):
     output = {
-        "updated_at": datetime.datetime.now().isoformat(),
-        "source": RANK_URL,
-        "books": data
+        "updated_at": datetime.utcnow().isoformat(),
+        "source": URL,
+        "books": books
     }
-    with open("data/girls_hotsales.json", "w", encoding="utf-8") as f:
+
+    with open("data/girls_hotsales.json", "w", encoding="utf‑8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
 
+    print(f"抓取完成，共获取 {len(books)} 本书籍")
+
 if __name__ == "__main__":
-    data = fetch_toplist()
-    save_data(data)
+    main()
